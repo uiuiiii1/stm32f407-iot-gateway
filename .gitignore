@@ -1,0 +1,11 @@
+# Keil 编译产物
+标准库基础工程/Objects/
+标准库基础工程/Listings/
+标准库基础工程/DebugConfig/
+标准库基础工程/*.uvguix.*
+标准库基础工程/build_log.txt
+
+# 临时文件
+*.bak
+_*.py
+Thumbs.db
