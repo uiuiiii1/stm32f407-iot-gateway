@@ -9,3 +9,6 @@
 *.bak
 _*.py
 Thumbs.db
+
+.vscode/
+*.log
