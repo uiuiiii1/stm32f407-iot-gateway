@@ -30,10 +30,6 @@ uint8_t W5500_ReadVersion(void);
  * 返回1=配置完好；0=曾丢失已自动恢复 */
 uint8_t W5500_CheckConfig(void);
 
-/* SPI1环回自检：PA6-PA7短接、拔掉模块MISO/MOSI后调用，验证SPI1外设与引脚
- * tx/rx : 收发缓冲；len : 长度。返回1=回显一致（核心板侧正常），0=不一致 */
-uint8_t W5500_BSP_SPILoopback(const uint8_t *tx, uint8_t *rx, uint8_t len);
-
 /* SPI1收发等待超时计数：>0说明SPI1硬件层出现过异常（配合串口日志判断卡死原因） */
 uint32_t W5500_BSP_SPI1Err(void);
 

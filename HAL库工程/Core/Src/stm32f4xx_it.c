@@ -22,6 +22,9 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "FreeRTOS.h"
+#include "task.h"
+extern void xPortSysTickHandler(void);   /* V11 未在头文件公开声明（port.c 内部），链式调用需显式声明 */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -150,18 +153,10 @@ void UsageFault_Handler(void)
   }
 }
 
-/**
-  * @brief This function handles System service call via SWI instruction.
-  */
-void SVC_Handler(void)
-{
-  /* USER CODE BEGIN SVCall_IRQn 0 */
-
-  /* USER CODE END SVCall_IRQn 0 */
-  /* USER CODE BEGIN SVCall_IRQn 1 */
-
-  /* USER CODE END SVCall_IRQn 1 */
-}
+/* SVC_Handler / PendSV_Handler 未在此定义：FreeRTOSConfig.h 已把 port 的
+ * vPortSVCHandler/xPortPendSVHandler 映射为这两个名字（调度器启动/任务切换用）。
+ * ⚠️ 若用 CubeMX 重新生成 it.c 会恢复空实现 → 与 port 重复定义（L6200E），
+ *    届时删除生成版这两个函数即可。 */
 
 /**
   * @brief This function handles Debug monitor.
@@ -176,28 +171,23 @@ void DebugMon_Handler(void)
   /* USER CODE END DebugMonitor_IRQn 1 */
 }
 
-/**
-  * @brief This function handles Pendable request for system service.
-  */
-void PendSV_Handler(void)
-{
-  /* USER CODE BEGIN PendSV_IRQn 0 */
-
-  /* USER CODE END PendSV_IRQn 0 */
-  /* USER CODE BEGIN PendSV_IRQn 1 */
-
-  /* USER CODE END PendSV_IRQn 1 */
-}
+/* PendSV_Handler 同 SVC_Handler：由 port 实现，勿在此定义 */
 
 /**
   * @brief This function handles System tick timer.
+  * @note  链式设计：HAL 时基（HAL_IncTick，modbus字节超时/HAL_Delay 依赖）
+  *        与 FreeRTOS tick 共用 SysTick。调度器启动前 port 未接管，
+  *        只走 HAL_IncTick；启动后两边都走。
   */
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
-
-  /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
+  if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+  {
+    xPortSysTickHandler();
+  }
+  /* USER CODE END SysTick_IRQn 0 */
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   /* USER CODE END SysTick_IRQn 1 */

@@ -1,6 +1,8 @@
 #include "w5500_bsp.h"
 #include "wizchip_conf.h"
 #include "delay.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 /*
  * W5500(USR-ES1) 板级支持包
@@ -50,6 +52,11 @@ static void bsp_spi_write(uint8_t val)
 
 static void bsp_cs_select(void)   { GPIO_ResetBits(W5500_CS_PORT, W5500_CS_PIN); }
 static void bsp_cs_deselect(void) { GPIO_SetBits(W5500_CS_PORT, W5500_CS_PIN);   }
+
+/* ioLibrary 临界区回调（RTOS 下必须注册：保护 ioLibrary 内部状态与 SPI 事务
+ * 不被任务切换打断）。单任务时等价于空操作 */
+static void bsp_cris_enter(void) { taskENTER_CRITICAL(); }
+static void bsp_cris_exit(void)  { taskEXIT_CRITICAL();  }
 
 void W5500_BSP_Init(void)
 {
@@ -108,6 +115,7 @@ void W5500_BSP_Init(void)
     Delay_ms(50);
 
     /* 注册ioLibrary回调并分配Socket缓冲 */
+    reg_wizchip_cris_cbfunc(bsp_cris_enter, bsp_cris_exit);
     reg_wizchip_cs_cbfunc(bsp_cs_select, bsp_cs_deselect);
     reg_wizchip_spi_cbfunc(bsp_spi_read, bsp_spi_write);
     wizchip_init(txSize, rxSize);
@@ -146,22 +154,6 @@ uint8_t W5500_CheckConfig(void)
         return 0;
     }
     return 1;
-}
-
-/* SPI1环回自检：拔掉模块的MISO/MOSI线、用杜邦线短接核心板PA6-PA7后调用。
- * 发送的每个字节经PA7->短接线->PA6原样收回，全部一致=SPI1外设/引脚/AF配置全好
- * tx/tx : 发送与接收缓冲（同长度）；返回1=通过，0=有回环不一致（核心板侧问题） */
-uint8_t W5500_BSP_SPILoopback(const uint8_t *tx, uint8_t *rx, uint8_t len)
-{
-    uint8_t i, pass = 1;
-
-    for (i = 0; i < len; i++)
-    {
-        rx[i] = SPI1_RW(tx[i]);
-        if (rx[i] != tx[i])
-            pass = 0;
-    }
-    return pass;
 }
 
 /* 读版本寄存器VERSIONR：Common块偏移0x0039，固定值0x04

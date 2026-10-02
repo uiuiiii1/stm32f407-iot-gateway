@@ -1,7 +1,11 @@
 #include "stm32f4xx_it.h"
-#include "delay.h"
 
-/* 核心异常服务程序。外设中断的服务函数后续按需在此添加 */
+/* 核心异常服务程序
+ * 注意：SVC/PendSV/SysTick 三个异常已由 FreeRTOS 接管
+ * （FreeRTOSConfig.h 里把 vPortSVCHandler/xPortPendSVHandler/xPortSysTickHandler
+ *   映射到 SVC_Handler/PendSV_Handler/SysTick_Handler，实现位于 port.c），
+ * 本文件不得再定义它们，否则与内核重复定义、链接报错或调度失效。
+ * 外设中断的服务函数后续按需在此添加 */
 
 void NMI_Handler(void)
 {
@@ -27,19 +31,6 @@ void UsageFault_Handler(void)
     while (1);
 }
 
-void SVC_Handler(void)
-{
-}
-
 void DebugMon_Handler(void)
 {
-}
-
-void PendSV_Handler(void)
-{
-}
-
-void SysTick_Handler(void)
-{
-    TimingDelay_Decrement();    /* delay.c 的1ms时基计数 */
 }

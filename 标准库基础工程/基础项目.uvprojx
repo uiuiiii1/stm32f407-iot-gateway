@@ -10,6 +10,7 @@
       <TargetName>Target 1</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
+      <pCCUsed>5060960::V5.06 update 7 (build 960)::.\ARMCC</pCCUsed>
       <uAC6>0</uAC6>
       <TargetOption>
         <TargetCommonOption>
@@ -339,7 +340,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER,HSE_VALUE=8000000,_WIZCHIP_=5500</Define>
               <Undefine></Undefine>
-              <IncludePath>.\Start;.\Library\inc;.\User;.\Hardware;.\Ethernet;.\Ethernet\W5500;.\Ethernet\DNS</IncludePath>
+              <IncludePath>.\Start;.\Library\inc;.\User;.\Hardware;.\Ethernet;.\Ethernet\W5500;.\Ethernet\DNS;.\FreeRTOS;.\FreeRTOS\include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -399,6 +400,11 @@
               <FilePath>.\Start\system_stm32f4xx.c</FilePath>
             </File>
             <File>
+              <FileName>FreeRTOSConfig.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Start\FreeRTOSConfig.h</FilePath>
+            </File>
+            <File>
               <FileName>stm32f4xx.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Start\stm32f4xx.h</FilePath>
@@ -423,7 +429,7 @@
               <FileType>5</FileType>
               <FilePath>.\Start\core_cmSimd.h</FilePath>
             </File>
-</Files>
+          </Files>
         </Group>
         <Group>
           <GroupName>User</GroupName>
@@ -448,7 +454,17 @@
               <FileType>5</FileType>
               <FilePath>.\User\stm32f4xx_conf.h</FilePath>
             </File>
-</Files>
+            <File>
+              <FileName>app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\User\app.c</FilePath>
+            </File>
+            <File>
+              <FileName>app.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\User\app.h</FilePath>
+            </File>
+          </Files>
         </Group>
         <Group>
           <GroupName>Library</GroupName>
@@ -788,7 +804,7 @@
               <FileType>1</FileType>
               <FilePath>.\Hardware\rtc.c</FilePath>
             </File>
-</Files>
+          </Files>
         </Group>
         <Group>
           <GroupName>Ethernet</GroupName>
@@ -832,6 +848,46 @@
               <FileName>dns.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Ethernet\DNS\dns.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>FreeRTOS</GroupName>
+          <Files>
+            <File>
+              <FileName>tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>list.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\list.c</FilePath>
+            </File>
+            <File>
+              <FileName>queue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\queue.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_groups.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\event_groups.c</FilePath>
+            </File>
+            <File>
+              <FileName>stream_buffer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\stream_buffer.c</FilePath>
+            </File>
+            <File>
+              <FileName>port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\port.c</FilePath>
+            </File>
+            <File>
+              <FileName>heap_4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FreeRTOS\heap_4.c</FilePath>
             </File>
           </Files>
         </Group>

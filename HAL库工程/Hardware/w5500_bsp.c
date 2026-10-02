@@ -2,6 +2,8 @@
 #include "wizchip_conf.h"
 #include "delay.h"
 #include "spi.h"        /* CubeMX 生成：extern SPI_HandleTypeDef hspi1 */
+#include "FreeRTOS.h"   /* taskENTER/EXIT_CRITICAL：ioLibrary 临界区回调 */
+#include "task.h"
 
 /*
  * W5500(USR-ES1) 板级支持包（HAL 版）
@@ -43,6 +45,12 @@ static void bsp_spi_write(uint8_t val)
 static void bsp_cs_select(void)   { HAL_GPIO_WritePin(W5500_CS_GPIO_Port, W5500_CS_Pin, GPIO_PIN_RESET); }
 static void bsp_cs_deselect(void) { HAL_GPIO_WritePin(W5500_CS_GPIO_Port, W5500_CS_Pin, GPIO_PIN_SET);   }
 
+/* ioLibrary 临界区回调（RTOS 下必须注册：保护 ioLibrary 内部状态与 SPI 事务
+ * 不被任务切换打断）。taskENTER_CRITICAL 是函数式宏，不能直接当函数指针传，
+ * 必须包一层普通函数。单任务未启动调度器时等价于空操作 */
+static void bsp_cris_enter(void) { taskENTER_CRITICAL(); }
+static void bsp_cris_exit(void)  { taskEXIT_CRITICAL();  }
+
 void W5500_BSP_Init(void)
 {
     uint8_t txSize[8] = {2, 2, 2, 2, 2, 2, 2, 2};   /* 8个Socket收发缓冲各2KB（共16KB） */
@@ -60,6 +68,9 @@ void W5500_BSP_Init(void)
     /* 注册ioLibrary回调并分配Socket缓冲 */
     reg_wizchip_cs_cbfunc(bsp_cs_select, bsp_cs_deselect);
     reg_wizchip_spi_cbfunc(bsp_spi_read, bsp_spi_write);
+    /* RTOS 临界区回调：ioLibrary 的"读寄存器-改-写回"序列必须原子化，
+     * 否则多任务并发访问 SPI1 会撞车（阶段8 起必须注册） */
+    reg_wizchip_cris_cbfunc(bsp_cris_enter, bsp_cris_exit);
     wizchip_init(txSize, rxSize);
 }
 
