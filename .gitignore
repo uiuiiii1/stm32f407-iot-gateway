@@ -1,4 +1,8 @@
 # Keil 编译产物
+HAL库工程/MDK-ARM/Objects/
+HAL库工程/MDK-ARM/Listings/
+HAL库工程/MDK-ARM/RTOS的多功能工业网关/
+HAL库工程/MDK-ARM/*.uvguix.*
 标准库基础工程/Objects/
 标准库基础工程/Listings/
 标准库基础工程/DebugConfig/
