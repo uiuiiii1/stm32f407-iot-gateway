@@ -785,6 +785,26 @@
               <FilePath>.\Hardware\mqtt.c</FilePath>
             </File>
             <File>
+              <FileName>datalog.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\datalog.h</FilePath>
+            </File>
+            <File>
+              <FileName>datalog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\datalog.c</FilePath>
+            </File>
+            <File>
+              <FileName>sntp.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\sntp.h</FilePath>
+            </File>
+            <File>
+              <FileName>sntp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\sntp.c</FilePath>
+            </File>
+            <File>
               <FileName>usart.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\usart.h</FilePath>

@@ -7,6 +7,7 @@
 #include "w5500_bsp.h"
 #include "modbus.h"
 #include "mqtt.h"
+#include "rtc.h"
 #include "app.h"
 
 /*
@@ -47,6 +48,7 @@ int main(void)
     LCD_DisplayString(16, 168, "PUB:");
 
     MB_USART_Init();
+    RTC_Init_Wrap();     /* 内部RTC（LSE带超时守卫）：阶段9 时间戳/备份寄存器书签依赖它 */
     W5500_BSP_Init();
     W5500_NetworkInit();
     MQTT_Init();

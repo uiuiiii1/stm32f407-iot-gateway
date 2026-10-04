@@ -15,6 +15,7 @@
 #define MQTT_BROKER_PORT    1883
 #define MQTT_CLIENTID       "gw001-lxb407"          /* 公共服务器必须全局唯一，冲突会被互踢 */
 #define MQTT_TOPIC          "gateway/gw001/data"
+#define MQTT_REPLAY_TOPIC   "gateway/gw001/replay"   /* 阶段9：断网缓存补传专用主题 */
 #define MQTT_KEEPALIVE      60                      /* 秒；PINGREQ 周期 = KEEPALIVE/2 = 30s */
 
 #define MQTT_SOCK           1                       /* MQTT 占用 Socket 编号（DNS 用 2，已错开） */

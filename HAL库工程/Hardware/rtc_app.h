@@ -21,4 +21,13 @@ uint8_t RTC_GetDateTime(uint8_t *y, uint8_t *mo, uint8_t *d,
 void RTC_SetDateTime(uint8_t y, uint8_t mo, uint8_t d,
                      uint8_t h, uint8_t mi, uint8_t s);
 
+/* ---------- Unix 时间戳（阶段9，与标准库版同名同语义） ---------- */
+uint32_t RTC_GetUnix(void);
+void RTC_SetUnix(uint32_t unix);
+uint8_t RTC_IsValid(void);
+
+/* ---------- 备份寄存器（跨工程中立接口，idx=0..19） ---------- */
+void RTC_BkpWrite(uint32_t idx, uint32_t val);
+uint32_t RTC_BkpRead(uint32_t idx);
+
 #endif /* __RTC_APP_H */

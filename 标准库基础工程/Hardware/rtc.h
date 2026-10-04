@@ -19,4 +19,20 @@ uint8_t RTC_GetDateTime(uint8_t *y, uint8_t *mo, uint8_t *d,
 void RTC_SetDateTime(uint8_t y, uint8_t mo, uint8_t d,
                      uint8_t h, uint8_t mi, uint8_t s);
 
+/* ---------- Unix 时间戳（阶段9 断网缓存/补传排序用） ---------- */
+
+/* 当前 RTC 时间 → Unix 秒（UTC，不做时区换算） */
+uint32_t RTC_GetUnix(void);
+
+/* Unix 秒 → 设置 RTC（UTC；SNTP 网络对时用） */
+void RTC_SetUnix(uint32_t unix);
+
+/* 备份寄存器读写（idx=0..19 对应 BKP_DR0..19；跨工程中立接口） */
+void RTC_BkpWrite(uint32_t idx, uint32_t val);
+uint32_t RTC_BkpRead(uint32_t idx);
+
+/* RTC 时间是否可信：断电后 RTC 回到 2000-01-01，年份 <24 = 未对时。
+ * 电池到货后断电走时保持，本函数断电重启也返回 1 */
+uint8_t RTC_IsValid(void);
+
 #endif /* __RTC_H */

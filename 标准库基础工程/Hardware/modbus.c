@@ -121,15 +121,15 @@ uint8_t MODBUS_ReadRegs(uint16_t regStart, uint16_t count, uint16_t *out)
     if (count == 0 || count > 4)
         return MB_ERR_FRAME;
 
-    tx[0] = MB_SLAVE_ADDR;
-    tx[1] = 0x03;
-    tx[2] = (uint8_t)(regStart >> 8);
-    tx[3] = (uint8_t)(regStart & 0xFF);
-    tx[4] = 0x00;
-    tx[5] = (uint8_t)count;
-    crc = MB_CRC16(tx, 6);
-    tx[6] = (uint8_t)(crc & 0xFF);       /* CRC 低字节在前 */
-    tx[7] = (uint8_t)(crc >> 8);
+    tx[0] = MB_SLAVE_ADDR;        // 字节0：从站地址
+    tx[1] = 0x03;                 // 字节1：功能码 03 = 读保持寄存器
+    tx[2] = (uint8_t)(regStart >> 8); // 字节2：起始寄存器地址【高字节】
+    tx[3] = (uint8_t)(regStart & 0xFF);// 字节3：起始寄存器地址【低字节】
+    tx[4] = 0x00;                 // 字节4：要读取寄存器数量【高字节】
+    tx[5] = (uint8_t)count;       // 字节5：要读取寄存器数量【低字节】
+    crc = MB_CRC16(tx, 6);        // 拿前面 tx[0]~tx[5] 这6个业务字节，计算CRC16
+    tx[6] = (uint8_t)(crc & 0xFF);// 字节6：CRC【低字节】（Modbus RTU规定低字节放前面）
+    tx[7] = (uint8_t)(crc >> 8);  // 字节7：CRC【高字节】
 
     for (attempt = 0; attempt < 3; attempt++)
     {

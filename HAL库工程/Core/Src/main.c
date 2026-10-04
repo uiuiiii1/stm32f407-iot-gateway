@@ -35,6 +35,7 @@
 #include "w5500_bsp.h"
 #include "modbus.h"
 #include "mqtt.h"
+#include "rtc_app.h"
 #include "app.h"
 /* USER CODE END Includes */
 
@@ -106,6 +107,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  RTC_Init_Wrap();   /* 开备份域写使能（DBP）：必须在 MX_RTC_Init 之前，阶段9 对时/书签依赖 */
   MX_RTC_Init();
   MX_SPI1_Init();
   MX_SPI3_Init();

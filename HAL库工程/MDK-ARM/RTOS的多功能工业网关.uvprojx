@@ -922,6 +922,46 @@
               <FilePath>../Hardware/lcd_fonts.c</FilePath>
             </File>
             <File>
+              <FileName>spi2.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\spi2.h</FilePath>
+            </File>
+            <File>
+              <FileName>spi2.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\spi2.c</FilePath>
+            </File>
+            <File>
+              <FileName>w25q64.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\w25q64.h</FilePath>
+            </File>
+            <File>
+              <FileName>w25q64.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\w25q64.c</FilePath>
+            </File>
+            <File>
+              <FileName>datalog.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\datalog.h</FilePath>
+            </File>
+            <File>
+              <FileName>datalog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\datalog.c</FilePath>
+            </File>
+            <File>
+              <FileName>sntp.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\sntp.h</FilePath>
+            </File>
+            <File>
+              <FileName>sntp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\sntp.c</FilePath>
+            </File>
+            <File>
               <FileName>w5500_bsp.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/w5500_bsp.c</FilePath>
