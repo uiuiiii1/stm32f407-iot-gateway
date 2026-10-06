@@ -8,6 +8,8 @@
 #include "modbus.h"
 #include "mqtt.h"
 #include "rtc.h"
+#include "AT24C64.h"
+#include "ota.h"
 #include "app.h"
 
 /*
@@ -19,15 +21,24 @@
  * 关键变化（相对阶段7裸机版）：
  *   - SysTick 归 FreeRTOS，delay.c 已改为 RTOS 垫片（GetTick=tick计数、Delay_ms=vTaskDelay）
  *   - ioLibrary 已注册临界区回调（w5500_bsp.c）
+ *
+ * 阶段10 追加：AT24C64_Init() —— OTA/书签的掉电安全状态介质（软件I2C PB10/PB11），
+ * datalog 补传书签后端已切到 AT24C64 双槽接口（见 datalog.c）。模块不在位时
+ * 该调用返回 NAK 但不阻塞，书签退化为不持久（断电重头补传，服务端去重兜底）。
  */
 
 int main(void)
 {
+    /* 阶段10：应用从 0x08000000 搬到 0x08008000（bootloader 之后），
+     * 向量表必须重定位到新基址，否则中断全部走 0x08000000 的 bootloader 向量区 */
+    SCB->VTOR = 0x08008000;
+
     /* SPL 中断优先级分组：全4位（FreeRTOS 要求，NVIC 优先级全为抢占优先级） */
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
     USART1_Init(115200);
     printf("System Start (FreeRTOS V11.3.0)\r\n");
+    printf("FW v%s (OTA)\r\n", OTA_VER_STR);
 
     SPI_LCD_Init();
     LCD_SetAsciiFont(&ASCII_Font16);
@@ -48,11 +59,16 @@ int main(void)
     LCD_DisplayString(16, 168, "PUB:");
 
     MB_USART_Init();
-    RTC_Init_Wrap();     /* 内部RTC（LSE带超时守卫）：阶段9 时间戳/备份寄存器书签依赖它 */
+    RTC_Init_Wrap();     /* 内部RTC（LSE带超时守卫）：阶段9 时间戳/书签依赖它 */
+    AT24C64_Init();      /* 阶段10：掉电安全状态介质（软件I2C），datalog 书签后端 */
     W5500_BSP_Init();
     W5500_NetworkInit();
     MQTT_Init();
+#if MQTT_LOCAL_BROKER
+    printf("Gateway ready: IP 192.168.0.250, broker=LOCAL(192.168.0.106:1883), MQTT pub 5s\r\n");
+#else
     printf("Gateway ready: IP 192.168.0.250, broker.emqx.io:1883, MQTT pub 5s\r\n");
+#endif
 
     /* 创建共享状态互斥锁 + 4个任务（详见 app.c） */
     APP_Init();

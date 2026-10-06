@@ -1,6 +1,7 @@
 #include "datalog.h"
 #include "w25q64.h"
-#include "rtc_app.h"   /* HAL 工程：RTC 接口在 rtc_app.h（SPL 版为 rtc.h），其余与标准库版完全同源 */
+#include "at24c64_slot.h"
+#include "delay.h"      /* GetTick()：书签写限流判据 */
 #include <stdio.h>
 
 /*
@@ -8,7 +9,8 @@
  *
  * 指针模型：
  *   写点 wp：下一条记录的写入位置（扇区号+扇区内偏移）
- *   消费点 rp：最旧一条未补传记录的位置，存 RTC 备份寄存器书签
+ *   消费点 rp：最旧一条未补传记录的位置，存 AT24C64 双槽书签（阶段10 起，
+ *   由 RTC 备份寄存器切换而来——没装 CR1220 电池断电也不再丢补传进度）
  *   启动扫描：从 rp 起按环形找第一个"槽全FF"的位置即 wp——已消费但未擦的
  *   扇区记录仍然合法，扫描会正确跳过；全FF即"没写过"。
  * 懒擦除（lazy erase）：wp 推进到扇区头时才擦该扇区。擦除前若 rp 还在本扇区
@@ -20,12 +22,17 @@
  *   [0..3]  magic "DGL1"   [4..7] ts(小端)  [8..9] t10  [10..11] h10
  *   [12..27] 0x00          [28..29] CRC16(前28字节,小端)  [30..31] 0xFF
  */
-#define DL_BKP_MAGIC  0xD1CE5A00UL   /* RTC备份寄存器书签校验魔数 */
+#define DL_BKP_MAGIC  0xD1CE5A00UL   /* 保留：RTC 书签魔数（切 AT24C64 后不再使用） */
+
+/* 书签写限流：距上次真正写 EEPROM ≥30s 才落盘（补传风暴 4.3万条也封顶 ~2次/分，
+ * AT24C64 100万次寿命 → 约68年；代价=掉电最多丢30s补传进度，服务端按 ts 去重） */
+#define DL_BM_THROTTLE_MS   30000UL
 
 static uint8_t  s_ready = 0;           /* Flash 在位且初始化成功 */
 static uint32_t s_wpSec, s_wpOff;      /* 写点 */
 static uint32_t s_rpSec, s_rpOff;      /* 消费点（书签） */
 static uint32_t s_count;               /* 待补传条数 */
+static uint32_t s_bmLastWrite = 0;     /* 上次真正写 EEPROM 书签的时刻（0=从未） */
 
 /* CRC16（Modbus 0xA001，与 modbus.c 同算法，独立实现避免耦合） */
 static uint16_t dl_crc16(const uint8_t *p, uint32_t len)
@@ -127,19 +134,55 @@ static uint8_t dl_slot_erased(uint32_t sec, uint32_t off)
     return 1;
 }
 
-/* 书签读写（RTC 备份寄存器：IWDG/看门狗复位保持，断电清零） */
-static void dl_bookmark_write(void)
+/* 书签读写（AT24C64 双槽接口，tag=SLOT_TAG_BOOKMARK，载荷=rpSec(4)+rpOff(4)）
+ * - 只在 DL_Pop（补传成功）/丢最旧扇区时更新，DL_Append 不写 EEPROM（控写寿命）
+ * - AT24C64 掉电保持，断电重启后书签仍在；写坏一槽由双槽另一槽兜底
+ * - 模块不在位时读写返回 NAK，bookmark 视为无效 → 从头补传（服务端按 ts 去重）
+ * - 写限流：dl_bookmark_write() 距上次真写 <DL_BM_THROTTLE_MS 只更新内存、不落盘；
+ *   DL_BookmarkCommit() 无条件强制落盘（补传结束调用，把限流窗口内的进度补齐） */
+
+/* 真正写 EEPROM：打包当前 rp 写入双槽，成功则刷新限流时刻 */
+static void dl_bm_flush(void)
 {
-    RTC_BkpWrite(0, s_rpSec);
-    RTC_BkpWrite(1, s_rpOff);
-    RTC_BkpWrite(2, DL_BKP_MAGIC);
+    uint8_t pay[8];
+    pay[0] = (uint8_t)s_rpSec;
+    pay[1] = (uint8_t)(s_rpSec >> 8);
+    pay[2] = (uint8_t)(s_rpSec >> 16);
+    pay[3] = (uint8_t)(s_rpSec >> 24);
+    pay[4] = (uint8_t)s_rpOff;
+    pay[5] = (uint8_t)(s_rpOff >> 8);
+    pay[6] = (uint8_t)(s_rpOff >> 16);
+    pay[7] = (uint8_t)(s_rpOff >> 24);
+    if (AT24C64_SlotWrite(SLOT_TAG_BOOKMARK, pay, 8) == AT24C64_OK)
+        s_bmLastWrite = GetTick();
 }
 
+/* 常规更新：限流。首写（s_bmLastWrite==0）或距上次 ≥30s 才真写，否则只更新内存 */
+static void dl_bookmark_write(void)
+{
+    uint32_t now = GetTick();
+    if (s_bmLastWrite != 0 && (now - s_bmLastWrite) < DL_BM_THROTTLE_MS)
+        return;                       /* 30s 内：内存书签已是最新，掉电最多丢这段进度 */
+    dl_bm_flush();
+}
+
+/* 补传结束强制提交：绕过限流无条件落盘一次（app.c 存储任务 drain 结束后调用） */
+void DL_BookmarkCommit(void)
+{
+    dl_bm_flush();
+}
+
+/* 有效：能读到有效槽且 rp 落在合法范围；读出时同步填充 s_rpSec/s_rpOff */
 static uint8_t dl_bookmark_valid(void)
 {
-    return (RTC_BkpRead(2) == DL_BKP_MAGIC
-            && RTC_BkpRead(0) < DL_SECTORS
-            && RTC_BkpRead(1) < W25Q64_SECTOR_SIZE);
+    uint8_t pay[8];
+    if (AT24C64_SlotRead(SLOT_TAG_BOOKMARK, pay, 8) != AT24C64_OK)
+        return 0;
+    s_rpSec = (uint32_t)pay[0] | ((uint32_t)pay[1] << 8) |
+              ((uint32_t)pay[2] << 16) | ((uint32_t)pay[3] << 24);
+    s_rpOff = (uint32_t)pay[4] | ((uint32_t)pay[5] << 8) |
+              ((uint32_t)pay[6] << 16) | ((uint32_t)pay[7] << 24);
+    return (s_rpSec < DL_SECTORS && s_rpOff < W25Q64_SECTOR_SIZE);
 }
 
 /* rp 前进一条（含跨扇区），不写书签 */
@@ -157,18 +200,16 @@ uint8_t DL_Init(void)
 {
     uint32_t k, sec, off, posSec, posOff;
     uint8_t  found = 0;
+    uint8_t  bmValid = 0;
 
     if (W25Q64_Init() != W25Q64_OK)
         return W25Q64_ERR_ID;
     s_ready = 0;
 
-    /* 消费点：备份书签优先，无效（首次上电/断电后）从 0 开始 */
-    if (dl_bookmark_valid())
-    {
-        s_rpSec = RTC_BkpRead(0);
-        s_rpOff = RTC_BkpRead(1);
-    }
-    else
+    /* 消费点：AT24C64 书签优先（dl_bookmark_valid 内部已填充 s_rpSec/s_rpOff），
+     * 无效（首次上电/EEPROM 不在位）从 0 开始 */
+    bmValid = dl_bookmark_valid();
+    if (!bmValid)
     {
         s_rpSec = 0;
         s_rpOff = 0;
@@ -177,12 +218,15 @@ uint8_t DL_Init(void)
 
     /* 找写点：从消费点起按环形扫，第一个全FF槽即写点；
      * 整圈找不到FF = 所有扇区都写满过 → 写点压回消费点扇区头，
-     * 首次追加时按"丢最旧扇区"规则处理 */
+     * 首次追加时按"丢最旧扇区"规则处理
+     * ⚠️ 第一圈必须从 s_rpOff 起步（不能从 0）：跨会话擦除史可能在 rp 扇区内、
+     * rp 之前留下 FF 槽，忽略 rpOff 会让 wp 落到 rp 环序后方，
+     * 计数循环从 rp 绕整圈 → 幽灵近满环 count（实测 227183、清 22 秒） */
     found = 0;
     for (k = 0; k < DL_SECTORS && !found; k++)
     {
         sec = (s_rpSec + k) % DL_SECTORS;
-        for (off = 0; off < W25Q64_SECTOR_SIZE; off += DL_REC_SIZE)
+        for (off = (k == 0) ? s_rpOff : 0; off < W25Q64_SECTOR_SIZE; off += DL_REC_SIZE)
         {
             if (dl_slot_erased(sec, off))
             {
@@ -219,6 +263,12 @@ uint8_t DL_Init(void)
          * 不能置0——首次追加按规则丢最旧扇区时 count 会下溢成 4×10^9（实测踩中） */
         s_count = DL_SECTORS * DL_REC_PER_SECTOR;
     }
+
+    /* 开机诊断：书签有效性 + rp/wp/found/count，定位"wp 是否落在 rp 环序后方"的幽灵计数 */
+    printf("datalog: init bm=%u rp=%u/%u wp=%u/%u found=%u count=%u%s\r\n",
+           (unsigned)bmValid, (unsigned)s_rpSec, (unsigned)s_rpOff,
+           (unsigned)s_wpSec, (unsigned)s_wpOff, (unsigned)found, (unsigned)s_count,
+           found ? "" : " (ring-full fallback)");
 
     s_ready = 1;
     return W25Q64_OK;

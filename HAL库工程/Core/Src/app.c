@@ -14,6 +14,7 @@
 #include "rtc_app.h"
 #include "datalog.h"
 #include "sntp.h"
+#include "ota.h"
 #include "app.h"
 
 /*
@@ -256,6 +257,7 @@ static void vNetworkTask(void *pv)
         /* 打卡必须在所有 continue 之前：离线/模块离线分支会 continue 跳过循环尾，
          * 挂在循环尾的打卡会让"拔网线=网络任务永不打卡=看门狗33秒复位" */
         Heartbeat(HB_NETWORK);
+        OTA_Poll();                 /* 阶段10.3：OTA 下载超时处理 */
         /* 在位检测：连续5次坏读才判离线（离线期严禁触碰socket API——0xFF读数会冻结close） */
         if (W5500_ReadVersion() != 0x04)
         {
@@ -317,7 +319,7 @@ static void vNetworkTask(void *pv)
             else if (wasDown)
             {
                 wasDown = 0;
-                if (DL_Count() > 0)
+                if (DL_Count() > 0 && !OTA_IsBusy())   /* OTA 期间不发起补传 */
                 {
                     gReplayReq = 1;
                     printf("replay requested: %u cached\r\n", (unsigned)DL_Count());
@@ -347,6 +349,23 @@ static void vNetworkTask(void *pv)
             {
                 sh_mqttOk = 1;
                 printf("MQTT: ONLINE\r\n");
+                OTA_NotifyAlive();   /* A2：运行正常 → 清 bootloader 待确认计数锁存 */
+                /* 阶段10.3：每次上线订阅 OTA 下行主题（断线重连后自动重订阅） */
+                MQTT_Subscribe(OTA_TOPIC_CMD, 0);
+                MQTT_Subscribe(OTA_TOPIC_FW, 0);
+                /* 阶段10.4：新固件首次上线 → 发运行确认（每个版本只发一次） */
+                if (OTA_NeedConfirm())
+                {
+                    char cj[48];
+                    int  cjLen = sprintf(cj, "{\"ota\":\"ok\",\"ver\":\"%s\"}", OTA_VER_STR);
+                    if (MQTT_Publish(OTA_TOPIC_CMD, (const uint8_t *)cj, (uint16_t)cjLen) == MQTT_OK)
+                    {
+                        OTA_ConfirmMark();
+                        printf("OTA: confirmed ver=%s\r\n", OTA_VER_STR);
+                    }
+                    else
+                        printf("OTA: confirm publish fail\r\n");
+                }
             }
 
             /* ===== 阶段9：SNTP 对时（首次上线立刻尝试，失败60s重试） ===== */
@@ -367,8 +386,9 @@ static void vNetworkTask(void *pv)
                     printf("SNTP: fail, will retry\r\n");
             }
 
-            /* ===== 阶段9：补传发布（每条>=20ms节流；失败保留在途下轮重试） ===== */
-            if (gReplayReq && (xTaskGetTickCount() - tReplay) >= 20)
+            /* ===== 阶段9：补传发布（每条>=20ms节流；失败保留在途下轮重试）
+             * OTA 下载期间挂起补传，避免带宽/Flash 并发抢占 ===== */
+            if (gReplayReq && !OTA_IsBusy() && (xTaskGetTickCount() - tReplay) >= 20)
             {
                 if (!havePend && xQueueReceive(xReplayQueue, &pend, 0) == pdTRUE)
                     havePend = 1;
@@ -425,6 +445,11 @@ static void vNetworkTask(void *pv)
                 }
             }
         }
+        else if (sh_mqttOk)
+        {
+            /* MQTT 掉线：清在线标志，下次上线时重新订阅 OTA 主题 */
+            sh_mqttOk = 0;
+        }
 
         vTaskDelay(10);
     }
@@ -476,6 +501,7 @@ static void vStorageTask(void *pv)
     uint32_t  cacheCnt = 0;            /* 本次离线期间新缓存条数 */
     uint32_t  pumped = 0;              /* 本次补传入队条数 */
     uint32_t  badCnt = 0;              /* 补传时跳过的坏记录条数 */
+    uint32_t  drainLoops = 0;          /* drain 循环计数：每64条让CPU一次，防饿死显示任务 */
     uint8_t   flashOk = 0;
 
     /* Flash 初始化（失败不放弃：每30秒重试，模块后上电也能恢复） */
@@ -522,8 +548,8 @@ static void vStorageTask(void *pv)
             /* 在线：实时值由网络任务走共享状态发布，队列读数直接丢弃 */
         }
 
-        /* 补传：网络任务已请求且链路在，把缓存灌进补传队列 */
-        if (gReplayReq && sh_link && !gDrainActive && flashOk)
+        /* 补传：网络任务已请求且链路在，把缓存灌进补传队列（OTA 下载期间挂起） */
+        if (gReplayReq && sh_link && !gDrainActive && flashOk && !OTA_IsBusy())
         {
             gDrainActive = 1;
             gDrainDone = 0;
@@ -532,6 +558,10 @@ static void vStorageTask(void *pv)
             while (DL_Count() > 0)
             {
                 Heartbeat(HB_STORAGE);
+                /* 每64条让CPU一次（1ms）：大数据量/清坏记录的自旋循环不能独占CPU，
+                 * 否则显示任务(prio2)被饿死→display heartbeat stale→看门狗不吃IWDG→33s复位 */
+                if ((++drainLoops & 0x3F) == 0)
+                    vTaskDelay(1);
                 if (DL_Peek(&ts, &t10, &h10) != W25Q64_OK)
                 {
                     badCnt++;
@@ -555,6 +585,7 @@ static void vStorageTask(void *pv)
             if (pumped || badCnt)
                 printf("drain done: sent=%u, bad=%u, left=%u\r\n",
                        (unsigned)pumped, (unsigned)badCnt, (unsigned)DL_Count());
+            DL_BookmarkCommit();    /* 补传结束：绕过30s限流，把书签无条件落盘 */
             gDrainActive = 0;
             gDrainDone = 1;
             cacheCnt = 0;
@@ -574,6 +605,9 @@ void APP_Init(void)
     /* 阶段9：数据/补传队列 */
     xDataQueue    = xQueueCreate(16, sizeof(DataMsg));
     xReplayQueue = xQueueCreate(8, sizeof(DataMsg));
+
+    /* 阶段10.3：注册 MQTT 下行回调（OTA 指令/分块） */
+    MQTT_SetMsgCb(OTA_OnMqtt);
 
     xTaskCreate(vWatchdogTask, "WDG", 128,  NULL, 4, NULL);
     xTaskCreate(vCollectTask,  "COL", 512,  NULL, 3, NULL);

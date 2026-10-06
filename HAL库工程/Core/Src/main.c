@@ -36,6 +36,8 @@
 #include "modbus.h"
 #include "mqtt.h"
 #include "rtc_app.h"
+#include "AT24C64.h"
+#include "ota.h"
 #include "app.h"
 /* USER CODE END Includes */
 
@@ -89,6 +91,13 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  /* 阶段10：应用从 0x08000000 搬到 0x08008000（bootloader 之后）：
+   * 向量表重定位（bootloader 跳转前也会设，这里兜底） */
+  SCB->VTOR = 0x08008000;
+  /* 关键：bootloader 跳转前调过 __disable_irq()（PRIMASK=1），必须尽早恢复全局中断，
+   * 否则调度器启动前 SysTick 中断被屏蔽 → uwTick 冻结 → HAL_Delay/HAL_GetTick 全部死等
+   * （现象：System Start 打印后无声卡死，VECT_TAB_OFFSET 设了也没用） */
+  __enable_irq();
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -141,10 +150,16 @@ int main(void)
   LCD_DisplayString(16, 168, "PUB:");
 
   MB_USART_Init();
+  AT24C64_Init();      /* 阶段10：掉电安全状态介质（软件I2C），datalog 书签/OTA 状态 */
   W5500_BSP_Init();
   W5500_NetworkInit();
   MQTT_Init();
+  printf("FW v%s (OTA)\r\n", OTA_VER_STR);
+#if MQTT_LOCAL_BROKER
+  printf("Gateway ready: IP 192.168.0.250, broker=LOCAL(192.168.0.106:1883), MQTT pub 5s\r\n");
+#else
   printf("Gateway ready: IP 192.168.0.250, broker.emqx.io:1883, MQTT pub 5s\r\n");
+#endif
 
   /* 创建互斥锁 + 4 任务（详见 app.c），随后交出控制权给 FreeRTOS */
   APP_Init();

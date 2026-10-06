@@ -1,0 +1,8 @@
+# 本地 MQTT broker 配置（amqtt，测试用）
+# 监听全部网卡 1883，允许匿名连接；公网恢复后改用 broker.emqx.io
+listeners:
+  default:
+    type: tcp
+    bind: 0.0.0.0:1883
+auth:
+  allow-anonymous: true

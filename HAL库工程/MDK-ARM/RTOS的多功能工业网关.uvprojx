@@ -18,7 +18,7 @@
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F4xx_DFP.3.1.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
-          <Cpu>IRAM(0x20000000-0x2001BFFF) IRAM2(0x2001C000-0x2001FFFF) IROM(0x8000000-0x80FFFFF) CLOCK(25000000) FPU2 CPUTYPE("Cortex-M4") TZ</Cpu>
+          <Cpu>IRAM(0x20000000-0x2001BFFF) IRAM2(0x2001C000-0x2001FFFF) IROM(0x8008000-0x807FFFF) CLOCK(25000000) FPU2 CPUTYPE("Cortex-M4") TZ</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
           <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F4xx_1024 -FS08000000 -FL0100000 -FP0($$Device:STM32F407VGTx$CMSIS\Flash\STM32F4xx_1024.FLM))</FlashDriverDll>
@@ -207,7 +207,7 @@
             <Ro2Chk>0</Ro2Chk>
             <Ro3Chk>0</Ro3Chk>
             <Ir1Chk>1</Ir1Chk>
-            <Ir2Chk>1</Ir2Chk>
+            <Ir2Chk>0</Ir2Chk>
             <Ra1Chk>0</Ra1Chk>
             <Ra2Chk>0</Ra2Chk>
             <Ra3Chk>0</Ra3Chk>
@@ -251,8 +251,8 @@
               </IRAM>
               <IROM>
                 <Type>1</Type>
-                <StartAddress>0x8000000</StartAddress>
-                <Size>0x100000</Size>
+                <StartAddress>0x8008000</StartAddress>
+                <Size>0x78000</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -276,8 +276,8 @@
               </OCR_RVCT3>
               <OCR_RVCT4>
                 <Type>1</Type>
-                <StartAddress>0x8000000</StartAddress>
-                <Size>0x100000</Size>
+                <StartAddress>0x8008000</StartAddress>
+                <Size>0x78000</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -902,9 +902,19 @@
           <GroupName>Hardware</GroupName>
           <Files>
             <File>
+              <FileName>delay.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/delay.h</FilePath>
+            </File>
+            <File>
               <FileName>delay.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/delay.c</FilePath>
+            </File>
+            <File>
+              <FileName>usart_app.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/usart_app.h</FilePath>
             </File>
             <File>
               <FileName>usart_app.c</FileName>
@@ -912,9 +922,19 @@
               <FilePath>../Hardware/usart_app.c</FilePath>
             </File>
             <File>
+              <FileName>lcd_spi_154.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/lcd_spi_154.h</FilePath>
+            </File>
+            <File>
               <FileName>lcd_spi_154.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/lcd_spi_154.c</FilePath>
+            </File>
+            <File>
+              <FileName>lcd_fonts.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/lcd_fonts.h</FilePath>
             </File>
             <File>
               <FileName>lcd_fonts.c</FileName>
@@ -952,6 +972,36 @@
               <FilePath>..\Hardware\datalog.c</FilePath>
             </File>
             <File>
+              <FileName>AT24C64.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\AT24C64.h</FilePath>
+            </File>
+            <File>
+              <FileName>AT24C64.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\AT24C64.c</FilePath>
+            </File>
+            <File>
+              <FileName>at24c64_slot.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\at24c64_slot.h</FilePath>
+            </File>
+            <File>
+              <FileName>at24c64_slot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\at24c64_slot.c</FilePath>
+            </File>
+            <File>
+              <FileName>ota.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Hardware\ota.h</FilePath>
+            </File>
+            <File>
+              <FileName>ota.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Hardware\ota.c</FilePath>
+            </File>
+            <File>
               <FileName>sntp.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Hardware\sntp.h</FilePath>
@@ -962,9 +1012,19 @@
               <FilePath>..\Hardware\sntp.c</FilePath>
             </File>
             <File>
+              <FileName>w5500_bsp.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/w5500_bsp.h</FilePath>
+            </File>
+            <File>
               <FileName>w5500_bsp.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/w5500_bsp.c</FilePath>
+            </File>
+            <File>
+              <FileName>modbus.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/modbus.h</FilePath>
             </File>
             <File>
               <FileName>modbus.c</FileName>
@@ -972,9 +1032,19 @@
               <FilePath>../Hardware/modbus.c</FilePath>
             </File>
             <File>
+              <FileName>mqtt.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/mqtt.h</FilePath>
+            </File>
+            <File>
               <FileName>mqtt.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/mqtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtc_app.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/rtc_app.h</FilePath>
             </File>
             <File>
               <FileName>rtc_app.c</FileName>

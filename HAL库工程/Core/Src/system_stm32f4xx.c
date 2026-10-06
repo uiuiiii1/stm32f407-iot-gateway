@@ -105,8 +105,10 @@
                                                      This value must be a multiple of 0x200. */
 #endif /* VECT_TAB_SRAM */
 #if !defined(VECT_TAB_OFFSET)
-#define VECT_TAB_OFFSET         0x00000000U     /*!< Vector Table offset field.
-                                                     This value must be a multiple of 0x200. */
+#define VECT_TAB_OFFSET         0x00008000U     /*!< Vector Table offset field.
+                                                     应用搬至 0x08008000（bootloader 之后），
+                                                     SystemInit 据此把 VTOR 指向应用向量表。
+                                                     必须为 0x200 的倍数。 */
 #endif /* VECT_TAB_OFFSET */
 #endif /* USER_VECT_TAB_ADDRESS */
 /******************************************************************************/
