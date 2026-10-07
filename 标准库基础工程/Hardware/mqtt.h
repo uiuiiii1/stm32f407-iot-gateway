@@ -14,10 +14,10 @@
  *   0 = 公网 broker.emqx.io（DNS 解析，公共服务器，高峰爱断线）
  *   1 = 本地/局域网 broker（静态 IP 直连，不开 DNS；电脑跑 amqtt，见 start_broker.cmd）
  * 公网恢复后改回 0 即可。 */
-#define MQTT_LOCAL_BROKER   1
+#define MQTT_LOCAL_BROKER   0
 
 #if MQTT_LOCAL_BROKER
-#define MQTT_BROKER_IP      {192, 168, 0, 106}        /* 电脑局域网 IP（amqtt 本地 broker；DHCP 变化后同步改这里） */
+#define MQTT_BROKER_IP      {192, 168, 0, 105}        /* 电脑局域网 IP（amqtt 本地 broker；DHCP 变化后同步改这里） */
 #define MQTT_USE_DNS        0
 #else
 /* 方案1：nslookup broker.emqx.io 查到的 IP（2026-10-01 查询，CNAME=prod-blue.public-broker.com） */

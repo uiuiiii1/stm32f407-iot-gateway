@@ -3,7 +3,7 @@
 #include "delay.h"
 
 /*============================================================
-  W25Q64 SPI NOR Flash 驱动（硬件 SPI2 @ 5.25MHz，模式0，CS=PB12 软件控制）
+  W25Q64 SPI NOR Flash 驱动（硬件 SPI2 @ 5.25MHz，模式0，CS=PB12 软件控制）（HAL 工程版：CS 层用 HAL GPIO，协议层与 SPL 版一致）
   - 移植自 F1 版 OTA 工程驱动，改动点：SPI1->SPI2、F1 GPIO->F4 GPIO、时钟使能换 AHB1/APB1
   - 擦除是写的前置条件（NOR 只能 1->0）；编程按 256B 页进行、不能跨页
   - 忙等待用 GetTick() 判超时，依赖 delay 模块的 SysTick 已初始化
@@ -74,6 +74,22 @@ static uint8_t W25_WaitBusy(uint32_t TimeoutMs)
     return W25Q64_ERR_TIMEOUT;
 }
 
+/* 排查探针用：读 SR1 原始值（bit1=WEL 写使能锁存，bit0=BUSY） */
+uint8_t W25Q64_ReadSR1(uint8_t *Sr1)
+{
+    uint8_t cmd = CMD_READ_SR1;
+
+    if (Sr1 == 0)
+    {
+        return W25Q64_ERR_PARAM;
+    }
+    W25_CS_LOW();
+    W25_Tx(&cmd, 1);
+    W25_Rx(Sr1, 1);
+    W25_CS_HIGH();
+    return W25Q64_OK;
+}
+
 static uint8_t W25_WriteEnable(void)
 {
     uint8_t cmd = CMD_WRITE_EN;
@@ -128,8 +144,8 @@ uint8_t W25Q64_Init(void)
     __HAL_RCC_GPIOB_CLK_ENABLE();
     gpio.Pin   = W25Q64_CS_PIN;
     gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull  = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+    gpio.Pull  = GPIO_PULLUP;
     HAL_GPIO_Init(W25Q64_CS_GPIO, &gpio);
     W25_CS_HIGH();
 

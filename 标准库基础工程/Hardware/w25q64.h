@@ -56,4 +56,8 @@ uint8_t W25Q64_EraseSector(uint32_t Addr);
  * 返回 : W25Q64_OK=成功；W25Q64_ERR_TIMEOUT=忙超时 */
 uint8_t W25Q64_ChipErase(void);
 
+/* 读状态寄存器 SR1 原始值（排查探针用：bit0=BUSY，bit1=WEL 写使能锁存）
+ * 返回 : W25Q64_OK=成功 */
+uint8_t W25Q64_ReadSR1(uint8_t *Sr1);
+
 #endif /* __W25Q64_H */

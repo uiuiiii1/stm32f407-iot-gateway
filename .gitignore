@@ -16,3 +16,11 @@ Thumbs.db
 
 .vscode/
 *.log
+
+# 固件产物与本地工具（不入库）
+*.bin
+ota_msgs.txt
+.idea/
+.mxproject
+MDK-ARM/*.uvprojx.bak_*
+标准库基础工程/*.uvprojx.bak_*

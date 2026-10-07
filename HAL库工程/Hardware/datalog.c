@@ -343,6 +343,35 @@ uint8_t DL_Append(uint32_t ts, int16_t t10, uint16_t h10)
         return W25Q64_ERR_SPI;
     }
 
+    /* 排查探针（阶段9 复发调查，2026-10-07）：写入后立即回读校验。
+     * 失败=写时损坏（供电/总线/擦除状态）；成功则数据当时在芯片上是好的 */
+    {
+        static uint8_t probeCnt = 0;
+        if (probeCnt < 2)
+        {
+            uint8_t  rb[DL_REC_SIZE];
+            uint32_t vts;
+            int16_t  vt;
+            uint16_t vh;
+            uint32_t i;
+
+            if (W25Q64_Read(DL_BASE_ADDR + s_wpSec * W25Q64_SECTOR_SIZE + s_wpOff,
+                            rb, DL_REC_SIZE) != W25Q64_OK || !dl_unpack(rb, &vts, &vt, &vh))
+            {
+                uint8_t sr1 = 0;
+                (void)W25Q64_ReadSR1(&sr1);
+                probeCnt++;
+                printf("[DL] append verify FAIL @%06X wp=%u/%u sr1=%02X\r\n  w:",
+                       (unsigned)(DL_BASE_ADDR + s_wpSec * W25Q64_SECTOR_SIZE + s_wpOff),
+                       (unsigned)s_wpSec, (unsigned)s_wpOff, sr1);
+                for (i = 0; i < DL_REC_SIZE; i++) { printf(" %02X", buf[i]); }
+                printf("\r\n  r:");
+                for (i = 0; i < DL_REC_SIZE; i++) { printf(" %02X", rb[i]); }
+                printf("\r\n");
+            }
+        }
+    }
+
     s_wpOff += DL_REC_SIZE;
     if (s_wpOff >= W25Q64_SECTOR_SIZE)
     {
@@ -368,7 +397,22 @@ uint8_t DL_Peek(uint32_t *ts, int16_t *t10, uint16_t *h10)
                     buf, DL_REC_SIZE) != W25Q64_OK)
         return W25Q64_ERR_SPI;
     if (!dl_unpack(buf, ts, t10, h10))
+    {
+        /* 排查探针：Peek 校验失败时转储原始字节（上电前2次），配合 append verify
+         * 区分"写时损坏"与"读时损坏"（阶段9 复发调查） */
+        static uint8_t peekPrn = 0;
+        if (peekPrn < 2)
+        {
+            uint32_t i;
+            peekPrn++;
+            printf("[DL] peek FAIL @%06X rp=%u/%u cnt=%u\r\n  r:",
+                   (unsigned)(DL_BASE_ADDR + s_rpSec * W25Q64_SECTOR_SIZE + s_rpOff),
+                   (unsigned)s_rpSec, (unsigned)s_rpOff, (unsigned)s_count);
+            for (i = 0; i < DL_REC_SIZE; i++) { printf(" %02X", buf[i]); }
+            printf("\r\n");
+        }
         return W25Q64_ERR_SPI;              /* 记录损坏：调用方可 Pop 跳过 */
+    }
     return W25Q64_OK;
 }
 

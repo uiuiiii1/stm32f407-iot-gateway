@@ -340,7 +340,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER,HSE_VALUE=8000000,_WIZCHIP_=5500</Define>
               <Undefine></Undefine>
-              <IncludePath>.\Start;.\Library\inc;.\User;.\Hardware;.\Ethernet;.\Ethernet\W5500;.\Ethernet\DNS;.\FreeRTOS;.\FreeRTOS\include</IncludePath>
+              <IncludePath>.\Start;.\Library\inc;.\User;.\Hardware;.\Ethernet;.\Ethernet\W5500;.\Ethernet\DNS;.\FreeRTOS;.\FreeRTOS\include;.\FatFs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -682,6 +682,31 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>FatFs</GroupName>
+          <Files>
+            <File>
+              <FileName>ff.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\FatFs\ff.h</FilePath>
+            </File>
+            <File>
+              <FileName>ffconf.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\FatFs\ffconf.h</FilePath>
+            </File>
+            <File>
+              <FileName>diskio.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\FatFs\diskio.h</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FatFs\ff.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>Hardware</GroupName>
           <Files>
             <File>
@@ -763,6 +788,51 @@
               <FileName>w25q64.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\w25q64.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\sdcard.h</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\sdcard.c</FilePath>
+            </File>
+            <File>
+              <FileName>diskio_sd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\diskio_sd.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdlog.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\sdlog.h</FilePath>
+            </File>
+            <File>
+              <FileName>sdlog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\sdlog.c</FilePath>
+            </File>
+            <File>
+              <FileName>can.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\can.h</FilePath>
+            </File>
+            <File>
+              <FileName>can.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\can.c</FilePath>
+            </File>
+            <File>
+              <FileName>air780e.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\air780e.h</FilePath>
+            </File>
+            <File>
+              <FileName>air780e.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\air780e.c</FilePath>
             </File>
             <File>
               <FileName>w5500_bsp.h</FileName>

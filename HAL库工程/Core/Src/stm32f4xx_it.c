@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "FreeRTOS.h"
 #include "task.h"
+#include "usart.h"                       /* extern huart3：USART3_IRQHandler 转发用 */
 extern void xPortSysTickHandler(void);   /* V11 未在头文件公开声明（port.c 内部），链式调用需显式声明 */
 /* USER CODE END Includes */
 
@@ -201,5 +202,13 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
-
+/**
+  * @brief This function handles USART3 global interrupt.
+  *        阶段13：Air780E 4G 备份通道（HAL_UART_IRQHandler 会按需调用
+  *        HAL_UART_RxCpltCallback / HAL_UART_ErrorCallback，均在 air780e.c 定义）
+  */
+void USART3_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart3);
+}
 /* USER CODE END 1 */

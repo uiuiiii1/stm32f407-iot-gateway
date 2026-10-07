@@ -340,7 +340,7 @@
               <MiscControls>--locale=english</MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,_WIZCHIP_=5500</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../Hardware;../Ethernet;../Ethernet/W5500;../Ethernet/DNS;../FreeRTOS;../FreeRTOS/include</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../Hardware;../Ethernet;../Ethernet/W5500;../Ethernet/DNS;../FreeRTOS;../FreeRTOS/include;../FatFs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1022,6 +1022,16 @@
               <FilePath>../Hardware/w5500_bsp.c</FilePath>
             </File>
             <File>
+              <FileName>air780e.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/air780e.h</FilePath>
+            </File>
+            <File>
+              <FileName>air780e.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Hardware/air780e.c</FilePath>
+            </File>
+            <File>
               <FileName>modbus.h</FileName>
               <FileType>5</FileType>
               <FilePath>../Hardware/modbus.h</FilePath>
@@ -1050,6 +1060,56 @@
               <FileName>rtc_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Hardware/rtc_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/sdcard.h</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Hardware/sdcard.c</FilePath>
+            </File>
+            <File>
+              <FileName>diskio_sd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Hardware/diskio_sd.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdlog.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Hardware/sdlog.h</FilePath>
+            </File>
+            <File>
+              <FileName>sdlog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Hardware/sdlog.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>FatFs</GroupName>
+          <Files>
+            <File>
+              <FileName>ff.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../FatFs/ff.h</FilePath>
+            </File>
+            <File>
+              <FileName>ffconf.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../FatFs/ffconf.h</FilePath>
+            </File>
+            <File>
+              <FileName>diskio.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../FatFs/diskio.h</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../FatFs/ff.c</FilePath>
             </File>
           </Files>
         </Group>

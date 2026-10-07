@@ -122,6 +122,7 @@ int main(void)
   MX_SPI3_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
+  MX_USART3_UART_Init();   /* 阶段13：Air780E 4G 备份通道 USART3（PC10/PC11） */
   /* USER CODE BEGIN 2 */
   /* MX_GPIO_Init 按 .ioc 里的默认状态把 PD12 拉低了，这里立刻重新点亮背光 */
   LCD_Backlight_ON;
@@ -156,7 +157,7 @@ int main(void)
   MQTT_Init();
   printf("FW v%s (OTA)\r\n", OTA_VER_STR);
 #if MQTT_LOCAL_BROKER
-  printf("Gateway ready: IP 192.168.0.250, broker=LOCAL(192.168.0.106:1883), MQTT pub 5s\r\n");
+  printf("Gateway ready: IP 192.168.0.250, broker=LOCAL(192.168.0.105:1883), MQTT pub 5s\r\n");
 #else
   printf("Gateway ready: IP 192.168.0.250, broker.emqx.io:1883, MQTT pub 5s\r\n");
 #endif

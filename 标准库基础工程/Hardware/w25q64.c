@@ -74,6 +74,22 @@ static uint8_t W25_WaitBusy(uint32_t TimeoutMs)
     return W25Q64_ERR_TIMEOUT;
 }
 
+/* 排查探针用：读 SR1 原始值（bit1=WEL 写使能锁存，bit0=BUSY） */
+uint8_t W25Q64_ReadSR1(uint8_t *Sr1)
+{
+    uint8_t cmd = CMD_READ_SR1;
+
+    if (Sr1 == 0)
+    {
+        return W25Q64_ERR_PARAM;
+    }
+    W25_CS_LOW();
+    W25_Tx(&cmd, 1);
+    W25_Rx(Sr1, 1);
+    W25_CS_HIGH();
+    return W25Q64_OK;
+}
+
 static uint8_t W25_WriteEnable(void)
 {
     uint8_t cmd = CMD_WRITE_EN;

@@ -13,8 +13,10 @@
 #include "mqtt.h"
 #include "rtc_app.h"
 #include "datalog.h"
+#include "sdlog.h"
 #include "sntp.h"
 #include "ota.h"
+#include "air780e.h"
 #include "app.h"
 
 /*
@@ -37,7 +39,8 @@ static SemaphoreHandle_t xStateMutex;
 static volatile int16_t  sh_temp10 = 0;
 static volatile uint16_t sh_hum10 = 0;
 static volatile uint8_t  sh_link = 0;         /* 1=UP */
-static volatile uint8_t  sh_mqttOk = 0;       /* 1=MQTT在线 */
+static volatile uint8_t  sh_mqttOk = 0;       /* 上云通道：1=正常（以太网或4G任一条通） 0=离线 */
+static volatile uint8_t  sh_4gUp = 0;         /* 1=当前上云走的是 4G 备份通道（显示任务用） */
 static volatile uint16_t sh_pubCnt = 0;
 static volatile uint8_t  sh_modbusOk = 1;
 
@@ -82,15 +85,17 @@ static void LCD_DisplayLink(uint8_t up)
     LCD_SetColor(LCD_BLACK);
 }
 
-/* MQTT 状态行固定坐标刷新（绿=ONLINE 红=OFF），返回1=本次发生了切换 */
-static int LCD_DisplayMqtt(uint8_t ok)
+/* MQTT 上云状态行固定坐标刷新（只重画变化字段），返回1=本次发生了切换
+ *   st=0 离线（红 OFF） / 1 以太网上云（绿 ONLINE） / 2 4G 备份上云（绿 4G OK）
+ * 4G 接管时也显示绿：上云确实通着，只是换了条路——屏上直接看得出"切到 4G 了" */
+static int LCD_DisplayMqtt(uint8_t st)
 {
     static uint8_t shown = 0xFF;
-    if (shown == ok)
+    if (shown == st)
         return 0;
-    shown = ok;
-    LCD_SetColor(ok ? LCD_GREEN : LCD_RED);
-    LCD_DisplayString(64, 64, ok ? "ONLINE" : "OFF   ");
+    shown = st;
+    LCD_SetColor(st ? LCD_GREEN : LCD_RED);
+    LCD_DisplayString(64, 64, (st == 2) ? "4G OK " : ((st == 1) ? "ONLINE" : "OFF   "));
     LCD_SetColor(LCD_BLACK);
     return 1;
 }
@@ -128,6 +133,16 @@ static void Heartbeat(uint8_t id)
 {
     hbTick[id] = xTaskGetTickCount();
 }
+
+#if AIR780E_ENABLE
+/* 4G 驱动里的 AT 长阻塞（单个命令最长 8s，整段启动最长 ~19s）期间，
+ * air780e.c 通过这个回调替网络任务喂心跳——否则看门狗任务会在 3s 后
+ * 报 "network heartbeat stale" 并停喂 IWDG */
+static void NetHeartbeat(void)
+{
+    Heartbeat(HB_NETWORK);
+}
+#endif
 
 /* ===== 看门狗（寄存器直写，语义与标准库版完全一致） ===== */
 static void IWDG_Start(void)
@@ -251,12 +266,131 @@ static void vNetworkTask(void *pv)
     uint8_t   havePend = 0;
     char      rjson[96];               /* 补传JSON缓冲（含ts字段） */
     int       rjsonLen;
+    /* ---- 阶段13.4 4G 备份通道 ---- */
+    uint32_t  t4gDown = 0;             /* 以太网断开的起始时刻（0=在线） */
+    uint8_t   g4gOn = 0;               /* 4G 通道接管标志 */
+    uint32_t  t4gPub = 0;              /* 4G 上次发布时刻 */
+    uint32_t  t4gRetry = 0;            /* 4G 启动失败重试节流 */
+    uint8_t   pubFail = 0;             /* 4G 连续发布失败计数（≥3 触发重新握手） */
 
     for (;;)
     {
         /* 打卡必须在所有 continue 之前：离线/模块离线分支会 continue 跳过循环尾，
          * 挂在循环尾的打卡会让"拔网线=网络任务永不打卡=看门狗33秒复位" */
         Heartbeat(HB_NETWORK);
+
+#if AIR780E_ENABLE
+        /* ===== 阶段13.4：4G 备份通道（以太网断 AIR780E_SWITCH_MS 后接管发布） =====
+         * 启动序列最坏连续阻塞 ~36s（10s 探 AT + 0.3s 硬复位 + 20s 等模块重启 + 6s 诊断），
+         * 但全程都有人打卡：本 loop 每圈打一次，AIR780E_At / AIR780E_HardReset / AIR780E_Diag
+         * 内部还会通过 AIR780E_SetHeartbeatCb 注册的回调反复替本任务打卡（APP_Init 里注册）。
+         * ⚠️ 会触发复位的是"某个任务心跳陈旧 3s"，不是"总时长 32.8s"——只要心跳不断，
+         *    阻塞 36s 也安全（看门狗照常喂 IWDG）。
+         * 启动失败 AIR780E_RETRY_MS 后重试。稳态每 5s 一次 MPUB。 */
+        if (sh_link == 0)
+        {
+            if (t4gDown == 0)
+            {
+                t4gDown = xTaskGetTickCount();
+            }
+            if (!g4gOn && (xTaskGetTickCount() - t4gDown) >= AIR780E_SWITCH_MS &&
+                (xTaskGetTickCount() - t4gRetry) >= AIR780E_RETRY_MS)
+            {
+                uint8_t i, ok = 0;
+                AIR780E_Init();
+                printf("[4G] startup: RDY=%u\r\n", AIR780E_IsOnline());
+                for (i = 0; i < 10; i++)            /* 等模块协议栈就绪（~10s） */
+                {
+                    Heartbeat(HB_NETWORK);
+                    if (AIR780E_WaitReady(1000) == AIR780E_OK) { ok = 1; break; }
+                }
+                if (!ok && AIR780E_HardReset())     /* 一声不吭 = 模块卡死，硬复位一次再等它启动 */
+                {
+                    printf("[4G] AT no reply -> hard reset module, wait boot\r\n");
+                    /* 实测：模块从复位释放到能答 AT 要 ~20.2s，20s 窗口差 0.2s 没抓到，
+                     * 白等一轮 5s 重试，所以放宽到 25s。探到就 break，正常情况不增加任何耗时 */
+                    for (i = 0; i < 25; i++)
+                    {
+                        Heartbeat(HB_NETWORK);
+                        if (AIR780E_WaitReady(1000) == AIR780E_OK) { ok = 1; break; }
+                    }
+                }
+                if (ok)
+                {
+                    Heartbeat(HB_NETWORK);
+                    ok = (AIR780E_MQTTStart("broker.emqx.io", 1883) == AIR780E_OK);
+                }
+                if (ok)
+                {
+                    g4gOn = 1;
+                    sh_mqttOk = 1;                  /* 4G 上云通道打通：LCD 的 MQTT 行不该再是红的 */
+                    printf("[4G] channel ON (eth down %us)\r\n",
+                           (unsigned)((xTaskGetTickCount() - t4gDown) / 1000));
+                }
+                else
+                {
+                    t4gRetry = xTaskGetTickCount();
+                    sh_mqttOk = 0;                  /* 以太网断着、4G 也没起来 = 真的离线 */
+                    AIR780E_Diag();                 /* 失败必带诊断：RDY/收字节/帧错误/AT回话hex */
+                    printf("[4G] start FAIL, retry in %us\r\n",
+                           (unsigned)(AIR780E_RETRY_MS / 1000));
+                }
+            }
+            if (g4gOn && (xTaskGetTickCount() - t4gPub) >= 5000)
+            {
+                t4gPub = xTaskGetTickCount();
+                jsonLen = sprintf(json, "{\"device\":\"gw001\",\"temp\":");
+                jsonLen += FmtX10(json + jsonLen, sh_temp10);
+                jsonLen += sprintf(json + jsonLen, ",\"hum\":");
+                jsonLen += FmtX10(json + jsonLen, (int16_t)sh_hum10);
+                jsonLen += sprintf(json + jsonLen, "}");    /* ⚠️ 别漏：缺了它发出的就是坏 JSON */
+                json[jsonLen] = '\0';
+                if (AIR780E_MQTTPublishJson("gateway/gw001/data", json) == AIR780E_OK)
+                {
+                    printf("[4G] PUB: %s\r\n", json);
+                    pubFail = 0;
+                    sh_mqttOk = 1;
+                }
+                else
+                {
+                    pubFail++;
+                    printf("[4G] PUB FAIL\r\n");
+                    if (pubFail >= 3)
+                    {
+                        /* 连发 3 条都不过：4G 侧 MQTT 会话多半已经死了（模块被踢/掉网），
+                         * 而 g4gOn 一直是 1，不重置就永远卡在"启动过了但发不出去"。
+                         * 先补一条 AT 探活，把两种情况分开处理：
+                         *   还回 AT   → 会话死了但模块活着：重跑 MQTTStart 就够
+                         *   连 AT 都不回 → 模块卡死 或 RX 线掉了：直接硬复位（60s 节流保护）
+                         * 注意：407 分不清"模块卡死"和"只是听不到"，所以这里是宁可错杀——
+                         * 对活着的模块代价只是重启十几秒，而 4G 是备份通道，数据本来就先进
+                         * W25Q64 缓存、联网后补传，不会丢。 */
+                        pubFail = 0;
+                        g4gOn = 0;
+                        sh_mqttOk = 0;
+                        t4gRetry = xTaskGetTickCount();
+                        printf("[4G] pub fail x3, re-handshake\r\n");
+                        if (AIR780E_At("AT", "OK", 0, 0, 1500) != AIR780E_OK)
+                        {
+                            printf("[4G] AT silent -> hard reset module\r\n");
+                            (void)AIR780E_HardReset();
+                        }
+                    }
+                }
+                Heartbeat(HB_NETWORK);
+            }
+        }
+        else
+        {
+            t4gDown = 0;
+            if (g4gOn)                          /* 以太网恢复：停 4G 发布（会话自然闲置） */
+            {
+                g4gOn = 0;
+                printf("[4G] channel OFF (eth back)\r\n");
+            }
+        }
+        sh_4gUp = g4gOn;        /* 镜像给显示任务：区分"以太网上云"和"4G 备份上云" */
+#endif
         OTA_Poll();                 /* 阶段10.3：OTA 下载超时处理 */
         /* 在位检测：连续5次坏读才判离线（离线期严禁触碰socket API——0xFF读数会冻结close） */
         if (W5500_ReadVersion() != 0x04)
@@ -334,7 +468,10 @@ static void vNetworkTask(void *pv)
                     linkDownCnt = 0;
                     if (getSn_SR(MQTT_SOCK) != SOCK_CLOSED)
                         close(MQTT_SOCK);      /* 模块在线，close安全 */
-                    sh_mqttOk = 0;
+                    /* 有 4G 顶着的时候别把"上云正常"判死——这个标志现在含义是
+                     * "上云通道是否正常"（以太网或 4G 任一条通即正常），由各自通道维护 */
+                    if (!sh_4gUp)
+                        sh_mqttOk = 0;
                 }
                 vTaskDelay(10);
                 continue;
@@ -466,7 +603,7 @@ static void vDisplayTask(void *pv)
     for (;;)
     {
         LCD_DisplayLink(sh_link);
-        LCD_DisplayMqtt(sh_mqttOk);
+        LCD_DisplayMqtt(sh_mqttOk ? (sh_4gUp ? 2 : 1) : 0);
 
         if (sh_temp10 != shownTemp)
         {
@@ -503,6 +640,7 @@ static void vStorageTask(void *pv)
     uint32_t  badCnt = 0;              /* 补传时跳过的坏记录条数 */
     uint32_t  drainLoops = 0;          /* drain 循环计数：每64条让CPU一次，防饿死显示任务 */
     uint8_t   flashOk = 0;
+    uint8_t   canaryDone = 0;          /* 金丝雀探针：联网后只做一次写读校验 */
 
     /* Flash 初始化（失败不放弃：每30秒重试，模块后上电也能恢复） */
     while (DL_Init() != W25Q64_OK)
@@ -515,13 +653,44 @@ static void vStorageTask(void *pv)
     flashOk = 1;
     printf("datalog: ready, %u cached\r\n", (unsigned)DL_Count());
 
+    /* SD 卡按天 CSV 归档：挂载 + 打开当日文件（失败自动降级，60s 重探测） */
+    SDLOG_Init();
+
     for (;;)
     {
         Heartbeat(HB_STORAGE);
 
+        /* 金丝雀探针（踩坑#42 防御）：网线全程不动，联网+对时后主动写一条并回读，
+         * 校验后消费掉。OK=写入链路健康；FAIL=写命令被干扰（串口立即报警） */
+        if (!canaryDone && sh_link == 1 && gTimeSynced)
+        {
+            canaryDone = 1;
+            if (DL_Append(RTC_GetUnix(), 0, 0) == W25Q64_OK)
+            {
+                uint32_t pts;
+                int16_t  pt;
+                uint16_t ph;
+                if (DL_Peek(&pts, &pt, &ph) == W25Q64_OK)
+                {
+                    (void)DL_Pop();          /* 校验完消费掉，不留 0/0 测试记录进补传 */
+                    printf("[DL] canary online: OK (ts=%lu)\r\n", (unsigned long)pts);
+                }
+                else
+                {
+                    printf("[DL] canary online: PEEK FAIL\r\n");
+                }
+            }
+            else
+            {
+                printf("[DL] canary online: APPEND FAIL\r\n");
+            }
+        }
+
         /* 收采集读数（阻塞500ms，保证心跳节奏） */
         if (xQueueReceive(xDataQueue, &m, pdMS_TO_TICKS(500)) == pdTRUE)
         {
+            SDLOG_Log(m.ts, m.t10, m.h10);   /* SD 归档：在线离线都写，失败静默降级 */
+
             if (sh_link == 0)          /* 离线：写环形缓存 */
             {
                 if (flashOk && DL_Append(m.ts, m.t10, m.h10) == W25Q64_OK)
@@ -608,6 +777,11 @@ void APP_Init(void)
 
     /* 阶段10.3：注册 MQTT 下行回调（OTA 指令/分块） */
     MQTT_SetMsgCb(OTA_OnMqtt);
+
+#if AIR780E_ENABLE
+    /* 阶段13.4：把 NET 任务心跳注入 4G 驱动——AT 长阻塞期间由驱动回调喂狗 */
+    AIR780E_SetHeartbeatCb(NetHeartbeat);
+#endif
 
     xTaskCreate(vWatchdogTask, "WDG", 128,  NULL, 4, NULL);
     xTaskCreate(vCollectTask,  "COL", 512,  NULL, 3, NULL);
