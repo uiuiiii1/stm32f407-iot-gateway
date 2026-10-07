@@ -207,8 +207,6 @@ static void vCollectTask(void *pv)
     uint16_t dropCnt = 0;              // 队列满被丢弃的读数计数
     DataMsg   m;
 
-    /* 阶段12 CAN 骨架已停用（用户决定跳过 CAN；can.c/h 保留，真总线联测时恢复
-     * 这段环回自测调用） */
     for (;;)
     {
         // Modbus读取温湿度
